@@ -101,6 +101,16 @@
     canvas {
       margin-top: 30px;
     }
+
+    .warning {
+      background-color: #ff9800;
+      color: #1e1e2f;
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -219,6 +229,7 @@
       let workingDebts = debts.map(d => ({ ...d }));
       let months = [];
       let totalBalances = [];
+      let warningMessage = "";
 
       while (workingDebts.some(d => d.balance > 0) && month < 600) {
         if (strategy === 'snowball') {
@@ -230,12 +241,12 @@
         let totalMin = workingDebts.reduce((sum, d) =>
           sum + (d.balance > 0 ? d.minPayment : 0), 0);
 
-        if (budget < totalMin) {
-          alert(`Your monthly budget of R${budget.toFixed(2)} is too low to cover minimum payments of R${totalMin.toFixed(2)}. Please increase your budget.`);
-          return null;
-        }
+        let scale = budget < totalMin ? budget / totalMin : 1;
+        let extra = budget > totalMin ? budget - totalMin : 0;
 
-        let extra = budget - totalMin;
+        if (scale < 1 && month === 1) {
+          warningMessage = `⚠️ Your budget of R${budget.toFixed(2)} covers only ${(scale * 100).toFixed(1)}% of the minimum required payments. Debts may grow.`;
+        }
 
         let payments = [];
 
@@ -248,7 +259,7 @@
           let interest = d.balance * d.rate;
           totalInterest += interest;
 
-          let payment = d.minPayment;
+          let payment = d.minPayment * scale;
 
           if (extra > 0 && d === workingDebts[0]) {
             payment += extra;
@@ -276,20 +287,28 @@
 
         plan.push({
           month,
-          payments
+          payments,
+          warningMessage
         });
 
         month++;
       }
 
-      return { plan, totalInterest, months, totalBalances };
+      return { plan, totalInterest, months, totalBalances, warningMessage };
     }
 
     function displayResults(result, debts) {
       const plan = result.plan;
       const totalInterest = result.totalInterest;
+      const warningMessage = result.warningMessage;
 
-      let html = `<h2>Repayment Plan</h2>`;
+      let html = "";
+
+      if (warningMessage) {
+        html += `<div class="warning">${warningMessage}</div>`;
+      }
+
+      html += `<h2>Repayment Plan</h2>`;
       html += `<p>Debt-free in <strong>${plan.length}</strong> months.</p>`;
       html += `<p><strong>Total Interest Paid:</strong> R${totalInterest.toFixed(2)}</p>`;
 
