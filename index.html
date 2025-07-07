@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debt Repayment Planner</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e1e2f, #161625);
+      color: #ffffff;
+      padding: 20px;
+    }
+
+    h1, h2 {
+      color: #00e5ff;
+      text-align: center;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px #00e5ff;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    .card {
+      background: rgba(42, 42, 64, 0.85);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover {
+      transform: scale(1.02);
+    }
+
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: 600;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      background: #3a3a55;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+
+    button {
+      background: linear-gradient(90deg, #00e5ff, #00bcd4);
+      color: #1e1e2f;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: linear-gradient(90deg, #00bcd4, #00e5ff);
+    }
+
+    button.edit-btn {
+      background: #ffc107;
+      color: #1e1e2f;
+    }
+
+    button.delete-btn {
+      background: #ff1744;
+      color: #fff;
+      margin-left: 10px;
+    }
+
+    .flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .flex > div {
+      flex: 1 1 300px;
+    }
+
+    .warning {
+      background-color: #ff9800;
+      color: #1e1e2f;
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .health-score {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin: 10px 0;
+      text-align: center;
+    }
+
+    .health-score.green {
+      color: #4caf50;
+    }
+
+    .health-score.yellow {
+      color: #ffc107;
+    }
+
+    .health-score.red {
+      color: #ff1744;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      border: 1px solid #3a3a55;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #00e5ff;
+      color: #1e1e2f;
+    }
+
+    canvas {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Debt Repayment Planner</h1>
+
+    <div class="card">
+      <h2>Add Debts</h2>
+      <div id="debts"></div>
+      <button onclick="addDebt()">Add Debt</button>
+    </div>
+
+    <div class="card flex">
+      <div>
+        <label for="budget">Total Monthly Payment Budget (R):</label>
+        <input type="number" id="budget" placeholder="Enter monthly amount" />
+      </div>
+      <div>
+        <label for="strategy">Repayment Strategy:</label>
+        <select id="strategy">
+          <option value="snowball">Snowball (smallest balance first)</option>
+          <option value="avalanche">Avalanche (highest interest first)</option>
+        </select>
+      </div>
+      <div>
+        <label for="lumpSum">Lump Sum Payment (R):</label>
+        <input type="number" id="lumpSum" value="0" />
+      </div>
+      <div>
+        <label for="lumpSumStrategy">Lump Sum Allocation:</label>
+        <select id="lumpSumStrategy">
+          <option value="snowball">Snowball</option>
+          <option value="avalanche">Avalanche</option>
+          <option value="prorata">Pro-rata</option>
+        </select>
+      </div>
+      <div>
+        <label for="extraPayment">Extra Monthly Payment (R):</label>
+        <input type="number" id="extraPayment" value="0" />
+      </div>
+    </div>
+
+    <div class="card">
+      <button onclick="calculatePlan()">Calculate Plan</button>
+      <button onclick="savePlan()">Save Plan</button>
+      <button onclick="loadPlan()">Load Plan</button>
+      <button onclick="downloadCSV()">Download CSV</button>
+    </div>
+
+    <div id="healthScore" class="health-score"></div>
+    <div id="warning" class="warning" style="display:none;"></div>
+    <div id="debtFreeDate" style="text-align:center; margin:20px 0; font-size:1.2em;"></div>
+
+    <div id="summaries" class="card"></div>
+    <div class="results" id="results"></div>
+
+    <canvas id="debtChart" height="100"></canvas>
+    <canvas id="pieChart" height="100"></canvas>
+  </div>
+
+<script>
+let debtCount = 0;
+
+function addDebt(name = "", balance = "", rate = "", minPayment = "", index = debtCount) {
+  const container = document.getElementById('debts');
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.id = `debtCard_${index}`;
+
+  div.innerHTML = `
+    <label>Creditor Name:</label>
+    <input type="text" id="name_${index}" value="${name}" />
+
+    <label>Balance (R):</label>
+    <input type="number" id="balance_${index}" value="${balance}" />
+
+    <label>Interest Rate (% annual):</label>
+    <input type="number" id="rate_${index}" step="0.01" value="${rate}" />
+
+    <label>Minimum Monthly Payment (R):</label>
+    <input type="number" id="minpay_${index}" value="${minPayment}" />
+
+    <button class="edit-btn" onclick="editDebt(${index})">Edit</button>
+    <button class="delete-btn" onclick="deleteDebt(${index})">Delete</button>
+  `;
+
+  container.appendChild(div);
+  debtCount = index + 1;
+}
+
+function editDebt(index) {
+  document.getElementById(`name_${index}`).disabled = false;
+  document.getElementById(`balance_${index}`).disabled = false;
+  document.getElementById(`rate_${index}`).disabled = false;
+  document.getElementById(`minpay_${index}`).disabled = false;
+}
+
+function deleteDebt(index) {
+  const div = document.getElementById(`debtCard_${index}`);
+  if (div) {
+    div.remove();
+  }
+}
+
+function calculatePlan() {
+  const debts = [];
+
+  for (let i = 0; i < debtCount; i++) {
+    if (!document.getElementById(`debtCard_${i}`)) continue;
+
+    const name = document.getElementById(`name_${i}`).value;
+    const balance = parseFloat(document.getElementById(`balance_${i}`).value);
+    const rate = parseFloat(document.getElementById(`rate_${i}`).value) / 100 / 12;
+    const minPayment = parseFloat(document.getElementById(`minpay_${i}`).value);
+
+    if (!isNaN(balance) && balance > 0) {
+      debts.push({
+        name,
+        balance,
+        rate,
+        minPayment,
+        id: i,
+        totalPaid: 0,
+        totalInterest: 0,
+        months: 0
+      });
+    }
+  }
+
+  const budget = parseFloat(document.getElementById('budget').value);
+  const strategy = document.getElementById('strategy').value;
+  const lumpSum = parseFloat(document.getElementById('lumpSum').value) || 0;
+  const lumpSumStrategy = document.getElementById('lumpSumStrategy').value;
+  const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
+
+  if (isNaN(budget) || budget <= 0) {
+    alert('Please enter a valid monthly budget.');
+    return;
+  }
+
+  if (lumpSum > 0) {
+    allocateLumpSum(lumpSum, debts, lumpSumStrategy);
+  }
+
+  const result = computePlan(debts, budget, strategy, extraPayment);
+  if (result) {
+    displayResults(result, debts);
+    showPieChart(debts);
+    updateHealthScore(debts, result.totalInterest);
+    predictDebtFreeDate(result.plan.length);
+    showDebtSummaries(debts);
+  }
+}
+
+function allocateLumpSum(lumpSum, debts, strategy) {
+  if (strategy === 'snowball') {
+    debts.sort((a, b) => a.balance - b.balance);
+  } else if (strategy === 'avalanche') {
+    debts.sort((a, b) => b.rate - a.rate);
+  } else if (strategy === 'prorata') {
+    let totalBal = debts.reduce((sum, d) => sum + d.balance, 0);
+    debts.forEach(d => {
+      let portion = (d.balance / totalBal) * lumpSum;
+      d.balance = Math.max(0, d.balance - portion);
+    });
+    return;
+  }
+
+  let lump = lumpSum;
+  for (let d of debts) {
+    if (lump <= 0) break;
+    let payAmount = Math.min(d.balance, lump);
+    d.balance -= payAmount;
+    lump -= payAmount;
+  }
+}
+
+function computePlan(debts, budget, strategy, extraPayment) {
+  let month = 1;
+  let totalInterest = 0;
+  let plan = [];
+  let workingDebts = debts.map(d => ({ ...d }));
+  let months = [];
+  let totalBalances = [];
+  let warningMessage = "";
+
+  while (workingDebts.some(d => d.balance > 0) && month < 600) {
+    if (strategy === 'snowball') {
+      workingDebts.sort((a, b) => a.balance - b.balance);
+    } else if (strategy === 'avalanche') {
+      workingDebts.sort((a, b) => b.rate - a.rate);
+    }
+
+    let totalMin = workingDebts.reduce((sum, d) =>
+      sum + (d.balance > 0 ? d.minPayment : 0), 0);
+
+    let scale = budget < totalMin ? budget / totalMin : 1;
+    let extra = budget > totalMin ? budget - totalMin : 0;
+    extra += extraPayment;
+
+    if (scale < 1 && month === 1) {
+      warningMessage = `⚠ Your budget covers only ${(scale * 100).toFixed(1)}% of required minimum payments. Debts may grow.`;
+    }
+
+    let payments = [];
+
+    for (let d of workingDebts) {
+      if (d.balance <= 0) {
+        payments.push({ name: d.name, payment: 0, interest: 0, balance: 0 });
+        continue;
+      }
+
+      let interest = d.balance * d.rate;
+      totalInterest += interest;
+      d.totalInterest += interest;
+
+      let payment = d.minPayment * scale;
+
+      if (extra > 0 && d === workingDebts[0]) {
+        payment += extra;
+      }
+
+      if (payment > d.balance + interest) {
+        payment = d.balance + interest;
+      }
+
+      d.balance = d.balance + interest - payment;
+      if (d.balance < 0) d.balance = 0;
+
+      d.totalPaid += payment;
+      d.months = month;
+
+      payments.push({
+        name: d.name,
+        payment: payment.toFixed(2),
+        interest: interest.toFixed(2),
+        balance: d.balance.toFixed(2)
+      });
+    }
+
+    let totalBalance = workingDebts.reduce((sum, d) => sum + d.balance, 0);
+
+    months.push(`Month ${month}`);
+    totalBalances.push(totalBalance.toFixed(2));
+
+    plan.push({
+      month,
+      payments,
+      warningMessage
+    });
+
+    month++;
+  }
+
+  return { plan, totalInterest, months, totalBalances, warningMessage };
+}
+
+function displayResults(result, debts) {
+  const plan = result.plan;
+  const totalInterest = result.totalInterest;
+  const warningMessage = result.warningMessage;
+
+  let html = "";
+
+  if (warningMessage) {
+    document.getElementById("warning").innerText = warningMessage;
+    document.getElementById("warning").style.display = "block";
+  } else {
+    document.getElementById("warning").style.display = "none";
+  }
+
+  html += `<h2>Repayment Plan</h2>`;
+  html += `<p>Debt-free in <strong>${plan.length}</strong> months.</p>`;
+  html += `<p><strong>Total Interest Paid:</strong> R${totalInterest.toFixed(2)}</p>`;
+
+  html += `<table><thead>
+    <tr>
+      <th>Month</th>
+      <th>Creditor</th>
+      <th>Payment</th>
+      <th>Interest Paid</th>
+      <th>Balance Remaining</th>
+    </tr>
+  </thead><tbody>`;
+
+  for (let monthData of plan) {
+    for (let payment of monthData.payments) {
+      html += `<tr>
+        <td>${monthData.month}</td>
+        <td>${payment.name}</td>
+        <td>R${payment.payment}</td>
+        <td>R${payment.interest}</td>
+        <td>R${payment.balance}</td>
+      </tr>`;
+    }
+  }
+
+  html += `</tbody></table>`;
+
+  document.getElementById('results').innerHTML = html;
+
+  if (result.months.length > 0) {
+    const ctx = document.getElementById('debtChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: result.months,
+        datasets: [{
+          label: 'Total Debt Balance (R)',
+          data: result.totalBalances,
+          borderColor: '#00e5ff',
+          backgroundColor: 'rgba(0, 229, 255, 0.2)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { labels: { color: '#ffffff' } }
+        },
+        scales: {
+          x: { ticks: { color: '#ffffff' } },
+          y: { ticks: { color: '#ffffff' } }
+        }
+      }
+    });
+  }
+}
+
+function showPieChart(debts) {
+  if (!debts.length) return;
+
+  const labels = debts.map(d => d.name);
+  const data = debts.map(d => d.balance);
+  const colors = debts.map((_, i) =>
+    `hsl(${(i * 70) % 360}, 100%, 50%)`
+  );
+
+  const ctx = document.getElementById('pieChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { color: '#ffffff' } }
+      }
+    }
+  });
+}
+
+function updateHealthScore(debts, totalInterest) {
+  let totalBalance = debts.reduce((sum, d) => sum + d.balance, 0);
+  let highRates = debts.filter(d => d.rate * 12 > 0.24).length;
+
+  let score = "";
+  let colorClass = "";
+
+  if (totalBalance === 0) {
+    score = "✅ Excellent! All debts paid.";
+    colorClass = "green";
+  } else if (highRates > 0 || totalInterest > 0.5 * totalBalance) {
+    score = "❌ High Risk: Seek help.";
+    colorClass = "red";
+  } else if (totalInterest > 0.3 * totalBalance) {
+    score = "⚠ Moderate risk. Review your plan.";
+    colorClass = "yellow";
+  } else {
+    score = "✅ Healthy plan!";
+    colorClass = "green";
+  }
+
+  const el = document.getElementById("healthScore");
+  el.textContent = score;
+  el.className = `health-score ${colorClass}`;
+}
+
+function predictDebtFreeDate(months) {
+  const now = new Date();
+  now.setMonth(now.getMonth() + months);
+  const dateStr = now.toLocaleDateString("en-ZA", { year: "numeric", month: "long" });
+  document.getElementById("debtFreeDate").innerText = `🎉 Estimated debt-free date: ${dateStr}`;
+}
+
+function showDebtSummaries(debts) {
+  let html = `<h2>Debt Summaries</h2><table><thead>
+    <tr><th>Creditor</th><th>Total Paid</th><th>Total Interest</th><th>Months to Payoff</th></tr>
+  </thead><tbody>`;
+
+  for (let d of debts) {
+    html += `<tr>
+      <td>${d.name}</td>
+      <td>R${d.totalPaid.toFixed(2)}</td>
+      <td>R${d.totalInterest.toFixed(2)}</td>
+      <td>${d.months}</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table>`;
+  document.getElementById("summaries").innerHTML = html;
+}
+
+function savePlan() {
+  const debts = [];
+  for (let i = 0; i < debtCount; i++) {
+    if (!document.getElementById(`debtCard_${i}`)) continue;
+    debts.push({
+      name: document.getElementById(`name_${i}`).value,
+      balance: document.getElementById(`balance_${i}`).value,
+      rate: document.getElementById(`rate_${i}`).value,
+      minpay: document.getElementById(`minpay_${i}`).value
+    });
+  }
+
+  const planData = {
+    debts,
+    budget: document.getElementById("budget").value,
+    strategy: document.getElementById("strategy").value,
+    lumpSum: document.getElementById("lumpSum").value,
+    lumpSumStrategy: document.getElementById("lumpSumStrategy").value,
+    extraPayment: document.getElementById("extraPayment").value
+  };
+
+  localStorage.setItem("savedDebtPlan", JSON.stringify(planData));
+  alert("Plan saved!");
+}
+
+function loadPlan() {
+  const data = localStorage.getItem("savedDebtPlan");
+  if (!data) {
+    alert("No saved plan found.");
+    return;
+  }
+
+  const planData = JSON.parse(data);
+  document.getElementById("debts").innerHTML = "";
+  debtCount = 0;
+  for (let d of planData.debts) {
+    addDebt(d.name, d.balance, d.rate, d.minpay);
+  }
+  document.getElementById("budget").value = planData.budget;
+  document.getElementById("strategy").value = planData.strategy;
+  document.getElementById("lumpSum").value = planData.lumpSum;
+  document.getElementById("lumpSumStrategy").value = planData.lumpSumStrategy;
+  document.getElementById("extraPayment").value = planData.extraPayment;
+  alert("Plan loaded!");
+}
+
+function downloadCSV() {
+  let table = document.querySelector("#results table");
+  if (!table) {
+    alert("Calculate a plan first!");
+    return;
+  }
+  let csv = [];
+  for (let row of table.rows) {
+    let rowData = [];
+    for (let cell of row.cells) {
+      rowData.push(cell.innerText.replace("R", "").trim());
+    }
+    csv.push(rowData.join(","));
+  }
+  let blob = new Blob([csv.join("\n")], { type: "text/csv" });
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "debt_plan.csv";
+  a.click();
+}
+</script>
+</body>
+</html>
+
