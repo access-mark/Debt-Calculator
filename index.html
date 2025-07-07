@@ -84,6 +84,7 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
+      font-size: 0.9rem;
     }
 
     th, td {
@@ -128,6 +129,7 @@
   <div class="results" id="results"></div>
 
   <canvas id="debtChart" height="100"></canvas>
+  <canvas id="pieChart" height="100"></canvas>
 
   <script>
     let debtCount = 0;
@@ -205,6 +207,7 @@
 
       const result = computePlan(debts, budget, strategy);
       displayResults(result, debts);
+      showPieChart(debts);
     }
 
     function computePlan(debts, budget, strategy) {
@@ -277,41 +280,46 @@
     function displayResults(result, debts) {
       const plan = result.plan;
       const totalInterest = result.totalInterest;
-      const months = result.months;
-      const totalBalances = result.totalBalances;
 
       let html = `<h2>Repayment Plan</h2>`;
       html += `<p>Debt-free in <strong>${plan.length}</strong> months.</p>`;
       html += `<p><strong>Total Interest Paid:</strong> $${totalInterest.toFixed(2)}</p>`;
 
-      html += `<table><thead><tr><th>Month</th>`;
-      for (let d of debts) {
-        html += `<th>${d.name}</th>`;
-      }
-      html += `</tr></thead><tbody>`;
+      html += `<table><thead>
+        <tr>
+          <th>Month</th>
+          <th>Creditor</th>
+          <th>Payment</th>
+          <th>Interest Paid</th>
+          <th>Balance Remaining</th>
+        </tr>
+      </thead><tbody>`;
 
       for (let monthData of plan) {
-        html += `<tr><td>${monthData.month}</td>`;
         for (let payment of monthData.payments) {
-          html += `<td>$${payment.payment}</td>`;
+          html += `<tr>
+            <td>${monthData.month}</td>
+            <td>${payment.name}</td>
+            <td>$${payment.payment}</td>
+            <td>$${payment.interest}</td>
+            <td>$${payment.balance}</td>
+          </tr>`;
         }
-        html += `</tr>`;
       }
 
       html += `</tbody></table>`;
 
       document.getElementById('results').innerHTML = html;
 
-      // Draw chart
-      if (months.length > 0) {
+      if (result.months.length > 0) {
         const ctx = document.getElementById('debtChart').getContext('2d');
         new Chart(ctx, {
           type: 'line',
           data: {
-            labels: months,
+            labels: result.months,
             datasets: [{
               label: 'Total Debt Balance',
-              data: totalBalances,
+              data: result.totalBalances,
               borderColor: '#00e5ff',
               backgroundColor: 'rgba(0, 229, 255, 0.2)',
               tension: 0.3,
@@ -321,23 +329,42 @@
           },
           options: {
             plugins: {
-              legend: {
-                labels: {
-                  color: '#ffffff'
-                }
-              }
+              legend: { labels: { color: '#ffffff' } }
             },
             scales: {
-              x: {
-                ticks: { color: '#ffffff' }
-              },
-              y: {
-                ticks: { color: '#ffffff' }
-              }
+              x: { ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' } }
             }
           }
         });
       }
+    }
+
+    function showPieChart(debts) {
+      if (!debts.length) return;
+
+      const labels = debts.map(d => d.name);
+      const data = debts.map(d => d.balance);
+      const colors = debts.map((_, i) =>
+        `hsl(${(i * 70) % 360}, 100%, 50%)`
+      );
+
+      const ctx = document.getElementById('pieChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { labels: { color: '#ffffff' } }
+          }
+        }
+      });
     }
   </script>
 </body>
