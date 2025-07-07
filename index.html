@@ -4,27 +4,37 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Debt Repayment Calculator</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       margin: 0;
       font-family: 'Segoe UI', Roboto, sans-serif;
-      background-color: #1e1e2f;
+      background: linear-gradient(135deg, #1e1e2f, #161625);
       color: #ffffff;
       padding: 20px;
     }
 
-    h1 {
+    h1, h2 {
       color: #00e5ff;
       text-align: center;
       margin-bottom: 20px;
+      text-shadow: 0 0 10px #00e5ff;
     }
 
     .card {
-      background-color: #2a2a40;
+      background: rgba(42, 42, 64, 0.85);
       border-radius: 8px;
       padding: 20px;
       margin-bottom: 20px;
-      box-shadow: 0 0 10px rgba(0,229,255,0.3);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover {
+      transform: scale(1.02);
     }
 
     label {
@@ -40,17 +50,23 @@
       border-radius: 4px;
       background: #3a3a55;
       color: #ffffff;
+      margin-bottom: 10px;
     }
 
     button {
-      background: #00e5ff;
+      background: linear-gradient(90deg, #00e5ff, #00bcd4);
       color: #1e1e2f;
       border: none;
-      padding: 10px 15px;
+      padding: 10px 20px;
       border-radius: 5px;
       cursor: pointer;
       font-weight: bold;
-      margin-top: 15px;
+      margin-top: 10px;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: linear-gradient(90deg, #00bcd4, #00e5ff);
     }
 
     table {
@@ -70,12 +86,13 @@
       color: #1e1e2f;
     }
 
-    .results {
-      margin-top: 20px;
+    canvas {
+      margin-top: 30px;
     }
   </style>
 </head>
 <body>
+
   <h1>Debt Repayment Calculator</h1>
 
   <div class="card">
@@ -85,7 +102,7 @@
   </div>
 
   <div class="card">
-    <label for="budget">Total Monthly Payment Budget:</label>
+    <label for="budget">Total Monthly Payment Budget ($):</label>
     <input type="number" id="budget" placeholder="Enter monthly amount" />
 
     <label for="strategy">Repayment Strategy:</label>
@@ -98,6 +115,8 @@
   </div>
 
   <div class="results" id="results"></div>
+
+  <canvas id="debtChart" height="100"></canvas>
 
   <script>
     let debtCount = 0;
@@ -152,17 +171,19 @@
         return;
       }
 
-      let plan = computePlan(debts, budget, strategy);
-      displayResults(plan);
+      const result = computePlan(debts, budget, strategy);
+      displayResults(result);
     }
 
     function computePlan(debts, budget, strategy) {
       let month = 1;
+      let totalInterest = 0;
       let plan = [];
       let workingDebts = debts.map(d => ({...d}));
+      let months = [];
+      let totalBalances = [];
 
       while (workingDebts.some(d => d.balance > 0) && month < 600) {
-        // Order debts
         if (strategy === 'snowball') {
           workingDebts.sort((a, b) => a.balance - b.balance);
         } else if (strategy === 'avalanche') {
@@ -182,6 +203,8 @@
           }
 
           let interest = d.balance * d.rate;
+          totalInterest += interest;
+
           let payment = d.minPayment;
 
           if (extra > 0 && d === workingDebts[0]) {
@@ -203,6 +226,11 @@
           });
         }
 
+        let totalBalance = workingDebts.reduce((sum, d) => sum + d.balance, 0);
+
+        months.push(`Month ${month}`);
+        totalBalances.push(totalBalance.toFixed(2));
+
         plan.push({
           month,
           payments
@@ -211,12 +239,18 @@
         month++;
       }
 
-      return plan;
+      return { plan, totalInterest, months, totalBalances };
     }
 
-    function displayResults(plan) {
+    function displayResults(result) {
+      const plan = result.plan;
+      const totalInterest = result.totalInterest;
+      const months = result.months;
+      const totalBalances = result.totalBalances;
+
       let html = `<h2>Repayment Plan</h2>`;
-      html += `<p>Debt-free in ${plan.length} months.</p>`;
+      html += `<p>Debt-free in <strong>${plan.length}</strong> months.</p>`;
+      html += `<p><strong>Total Interest Paid:</strong> $${totalInterest.toFixed(2)}</p>`;
 
       html += `<table><thead><tr><th>Month</th>`;
       for (let d of debts) {
@@ -235,6 +269,43 @@
       html += `</tbody></table>`;
 
       document.getElementById('results').innerHTML = html;
+
+      // Draw chart
+      if (months.length > 0) {
+        const ctx = document.getElementById('debtChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: months,
+            datasets: [{
+              label: 'Total Debt Balance',
+              data: totalBalances,
+              borderColor: '#00e5ff',
+              backgroundColor: 'rgba(0, 229, 255, 0.2)',
+              tension: 0.3,
+              fill: true,
+              pointRadius: 2
+            }]
+          },
+          options: {
+            plugins: {
+              legend: {
+                labels: {
+                  color: '#ffffff'
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#ffffff' }
+              },
+              y: {
+                ticks: { color: '#ffffff' }
+              }
+            }
+          }
+        });
+      }
     }
   </script>
 </body>
