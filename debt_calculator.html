@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debt Repayment Calculator</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background-color: #1e1e2f;
+      color: #ffffff;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #00e5ff;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background-color: #2a2a40;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 10px rgba(0,229,255,0.3);
+    }
+
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: 600;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      background: #3a3a55;
+      color: #ffffff;
+    }
+
+    button {
+      background: #00e5ff;
+      color: #1e1e2f;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #3a3a55;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #00e5ff;
+      color: #1e1e2f;
+    }
+
+    .results {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Debt Repayment Calculator</h1>
+
+  <div class="card">
+    <h2>Add Debts</h2>
+    <div id="debts"></div>
+    <button onclick="addDebt()">Add Debt</button>
+  </div>
+
+  <div class="card">
+    <label for="budget">Total Monthly Payment Budget:</label>
+    <input type="number" id="budget" placeholder="Enter monthly amount" />
+
+    <label for="strategy">Repayment Strategy:</label>
+    <select id="strategy">
+      <option value="snowball">Snowball (smallest balance first)</option>
+      <option value="avalanche">Avalanche (highest interest first)</option>
+    </select>
+
+    <button onclick="calculatePlan()">Calculate Plan</button>
+  </div>
+
+  <div class="results" id="results"></div>
+
+  <script>
+    let debtCount = 0;
+    const debts = [];
+
+    function addDebt() {
+      const container = document.getElementById('debts');
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        <label>Creditor Name:</label>
+        <input type="text" id="name_${debtCount}" placeholder="e.g. Visa Card" />
+
+        <label>Balance ($):</label>
+        <input type="number" id="balance_${debtCount}" />
+
+        <label>Interest Rate (% annual):</label>
+        <input type="number" id="rate_${debtCount}" step="0.01" />
+
+        <label>Minimum Monthly Payment ($):</label>
+        <input type="number" id="minpay_${debtCount}" />
+      `;
+      container.appendChild(div);
+      debtCount++;
+    }
+
+    function calculatePlan() {
+      debts.length = 0; // reset array
+
+      for (let i = 0; i < debtCount; i++) {
+        const name = document.getElementById(`name_${i}`).value;
+        const balance = parseFloat(document.getElementById(`balance_${i}`).value);
+        const rate = parseFloat(document.getElementById(`rate_${i}`).value) / 100 / 12;
+        const minPayment = parseFloat(document.getElementById(`minpay_${i}`).value);
+
+        if (!isNaN(balance) && balance > 0) {
+          debts.push({
+            name,
+            balance,
+            rate,
+            minPayment,
+            id: i
+          });
+        }
+      }
+
+      const budget = parseFloat(document.getElementById('budget').value);
+      const strategy = document.getElementById('strategy').value;
+
+      if (isNaN(budget) || budget <= 0) {
+        alert('Please enter a valid monthly budget.');
+        return;
+      }
+
+      let plan = computePlan(debts, budget, strategy);
+      displayResults(plan);
+    }
+
+    function computePlan(debts, budget, strategy) {
+      let month = 1;
+      let plan = [];
+      let workingDebts = debts.map(d => ({...d}));
+
+      while (workingDebts.some(d => d.balance > 0) && month < 600) {
+        // Order debts
+        if (strategy === 'snowball') {
+          workingDebts.sort((a, b) => a.balance - b.balance);
+        } else if (strategy === 'avalanche') {
+          workingDebts.sort((a, b) => b.rate - a.rate);
+        }
+
+        let totalMin = workingDebts.reduce((sum, d) => sum + (d.balance > 0 ? d.minPayment : 0), 0);
+        let extra = budget - totalMin;
+        if (extra < 0) extra = 0;
+
+        let payments = [];
+
+        for (let d of workingDebts) {
+          if (d.balance <= 0) {
+            payments.push({ name: d.name, payment: 0, interest: 0, balance: 0 });
+            continue;
+          }
+
+          let interest = d.balance * d.rate;
+          let payment = d.minPayment;
+
+          if (extra > 0 && d === workingDebts[0]) {
+            payment += extra;
+          }
+
+          if (payment > d.balance + interest) {
+            payment = d.balance + interest;
+          }
+
+          d.balance = d.balance + interest - payment;
+          if (d.balance < 0) d.balance = 0;
+
+          payments.push({
+            name: d.name,
+            payment: payment.toFixed(2),
+            interest: interest.toFixed(2),
+            balance: d.balance.toFixed(2)
+          });
+        }
+
+        plan.push({
+          month,
+          payments
+        });
+
+        month++;
+      }
+
+      return plan;
+    }
+
+    function displayResults(plan) {
+      let html = `<h2>Repayment Plan</h2>`;
+      html += `<p>Debt-free in ${plan.length} months.</p>`;
+
+      html += `<table><thead><tr><th>Month</th>`;
+      for (let d of debts) {
+        html += `<th>${d.name}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+
+      for (let monthData of plan) {
+        html += `<tr><td>${monthData.month}</td>`;
+        for (let payment of monthData.payments) {
+          html += `<td>$${payment.payment}</td>`;
+        }
+        html += `</tr>`;
+      }
+
+      html += `</tbody></table>`;
+
+      document.getElementById('results').innerHTML = html;
+    }
+  </script>
+</body>
+</html>
