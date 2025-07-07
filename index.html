@@ -206,15 +206,17 @@
       }
 
       const result = computePlan(debts, budget, strategy);
-      displayResults(result, debts);
-      showPieChart(debts);
+      if (result) {
+        displayResults(result, debts);
+        showPieChart(debts);
+      }
     }
 
     function computePlan(debts, budget, strategy) {
       let month = 1;
       let totalInterest = 0;
       let plan = [];
-      let workingDebts = debts.map(d => ({...d}));
+      let workingDebts = debts.map(d => ({ ...d }));
       let months = [];
       let totalBalances = [];
 
@@ -225,9 +227,15 @@
           workingDebts.sort((a, b) => b.rate - a.rate);
         }
 
-        let totalMin = workingDebts.reduce((sum, d) => sum + (d.balance > 0 ? d.minPayment : 0), 0);
+        let totalMin = workingDebts.reduce((sum, d) =>
+          sum + (d.balance > 0 ? d.minPayment : 0), 0);
+
+        if (budget < totalMin) {
+          alert(`Your monthly budget of R${budget.toFixed(2)} is too low to cover minimum payments of R${totalMin.toFixed(2)}. Please increase your budget.`);
+          return null;
+        }
+
         let extra = budget - totalMin;
-        if (extra < 0) extra = 0;
 
         let payments = [];
 
