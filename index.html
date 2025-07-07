@@ -114,7 +114,7 @@
   </div>
 
   <div class="card">
-    <label for="budget">Total Monthly Payment Budget ($):</label>
+    <label for="budget">Total Monthly Payment Budget (R):</label>
     <input type="number" id="budget" placeholder="Enter monthly amount" />
 
     <label for="strategy">Repayment Strategy:</label>
@@ -144,13 +144,13 @@
         <label>Creditor Name:</label>
         <input type="text" id="name_${index}" placeholder="e.g. Visa Card" value="${name}" />
 
-        <label>Balance ($):</label>
+        <label>Balance (R):</label>
         <input type="number" id="balance_${index}" value="${balance}" />
 
         <label>Interest Rate (% annual):</label>
         <input type="number" id="rate_${index}" step="0.01" value="${rate}" />
 
-        <label>Minimum Monthly Payment ($):</label>
+        <label>Minimum Monthly Payment (R):</label>
         <input type="number" id="minpay_${index}" value="${minPayment}" />
 
         <button class="edit-btn" onclick="editDebt(${index})">Edit</button>
@@ -283,7 +283,7 @@
 
       let html = `<h2>Repayment Plan</h2>`;
       html += `<p>Debt-free in <strong>${plan.length}</strong> months.</p>`;
-      html += `<p><strong>Total Interest Paid:</strong> $${totalInterest.toFixed(2)}</p>`;
+      html += `<p><strong>Total Interest Paid:</strong> R${totalInterest.toFixed(2)}</p>`;
 
       html += `<table><thead>
         <tr>
@@ -300,9 +300,9 @@
           html += `<tr>
             <td>${monthData.month}</td>
             <td>${payment.name}</td>
-            <td>$${payment.payment}</td>
-            <td>$${payment.interest}</td>
-            <td>$${payment.balance}</td>
+            <td>R${payment.payment}</td>
+            <td>R${payment.interest}</td>
+            <td>R${payment.balance}</td>
           </tr>`;
         }
       }
@@ -318,7 +318,7 @@
           data: {
             labels: result.months,
             datasets: [{
-              label: 'Total Debt Balance',
+              label: 'Total Debt Balance (R)',
               data: result.totalBalances,
               borderColor: '#00e5ff',
               backgroundColor: 'rgba(0, 229, 255, 0.2)',
